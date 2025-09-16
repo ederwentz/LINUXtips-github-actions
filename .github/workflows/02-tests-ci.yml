@@ -20,20 +20,17 @@ jobs:
       - name: "Checkout do código"
         uses: actions/checkout@v4
 
-      # INSIRA AQUI A LÓGICA PARA RODAR OS TESTES E VERIFICAR A COBERTURA
-      ###
-      ###
-      ###
-      - name: "Configurar Node.js"
+      - name: "Setup Node.js"
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: "Instalar dependências"
         run: npm ci
 
       - name: "Executar testes com cobertura"
-        run: npm test
+        run: npm run tests
 
       - name: "Extrair porcentagem de cobertura" # Esse step será validado pelo desafio, não altere o nome. No final, ele deve gerar o output "coverage" com a porcentagem de cobertura.
         id: coverage
@@ -41,6 +38,14 @@ jobs:
           COVERAGE=$(npx nyc report --reporter=text-summary | grep -oP 'Statements\s*:\s*\K[0-9\.]+(?=%)' | head -1)
           echo "Coverage: $COVERAGE%"
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: "Verificar cobertura mínima"
+        run: |
+          if (( $(echo "$COVERAGE < ${{ env.COVERAGE_MIN }}" | bc -l) )); then
+            echo "Erro: Cobertura de testes de $COVERAGE% é menor que o mínimo de ${{ env.COVERAGE_MIN }}%."
+            exit 1
+          fi
+          echo "Cobertura de testes de $COVERAGE% atingiu o mínimo de ${{ env.COVERAGE_MIN }}%."
 
   generate-certificate: # DAQUI PARA BAIXO, NÃO ALTERAR
       name: "Desafio Nível 2 - Certificado"
