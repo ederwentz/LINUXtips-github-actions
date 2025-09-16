@@ -1,4 +1,4 @@
-name: "CI Básico"
+name: "Nível 1: Basic CI - 01-basic-ci.yml"
 
 on:
   push:
