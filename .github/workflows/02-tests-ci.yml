@@ -34,13 +34,12 @@ jobs:
 
       - name: "Executar testes com cobertura"
         id: run-tests
-        run: npm run tests > test-summary.txt
+        run: npm run tests -- --coverageReporters=text --coverageReporters=json-summary
 
       - name: "Extrair porcentagem de cobertura" # Esse step será validado pelo desafio, não altere o nome. No final, ele deve gerar o output "coverage" com a porcentagem de cobertura.
         id: coverage
         run: |
-          # Extrai a linha, pega a 3ª coluna, remove o '%' e qualquer espaço em branco
-          COVERAGE=$(grep 'Statements' test-summary.txt | awk '{print $3}' | tr -d '[:space:]%')
+          COVERAGE=$(jq '.total.statements.pct' coverage/coverage-summary.json)
           echo "Coverage: $COVERAGE%"
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
 
