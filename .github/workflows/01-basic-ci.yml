@@ -1,4 +1,4 @@
-name: "Nível 1: Basic CI"
+name: "CI Pipeline Completa (Nível 1 e 2)"
 
 on:
   push:
@@ -7,14 +7,15 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Variáveis de ambiente globais, disponíveis para todos os jobs
 env:
   NODE_VERSION: '18'
-  CHALLENGE_LEVEL: 1
-  CHALLENGE_NAME: "first-steps"
+  COVERAGE_MIN: 80 # Cobertura mínima de testes exigida
 
 jobs:
+  # --- INÍCIO DOS JOBS DO NÍVEL 1 ---
   basic-setup:
-    name: "Setup & Basic Checks"
+    name: "Nível 1: Setup & Basic Checks"
     runs-on: ubuntu-latest
     
     outputs:
@@ -67,7 +68,7 @@ jobs:
           echo "status=started" >> $GITHUB_OUTPUT
           
   build:
-    name: "Build da Aplicação"
+    name: "Nível 1: Build da Aplicação"
     runs-on: ubuntu-latest
     needs: basic-setup
     
@@ -97,7 +98,7 @@ jobs:
           echo "Arquivos: $(find . -type f | wc -l)"
           
   health-check:
-    name: "Health Check"
+    name: "Nível 1: Health Check"
     runs-on: ubuntu-latest
     needs: [basic-setup, build]
     
@@ -136,7 +137,7 @@ jobs:
           fi
           
   challenge-complete:
-    name: "Desafio Nível 1 - Concluído!"
+    name: "Nível 1: Desafio Concluído!"
     runs-on: ubuntu-latest
     needs: [basic-setup, build, health-check]
     if: success()
@@ -228,3 +229,75 @@ jobs:
           echo "Workflow concluído com sucesso!"
           echo "Badge será desbloqueado automaticamente se a aplicação estiver rodando"
 
+  # --- INÍCIO DOS JOBS DO NÍVEL 2 ---
+  # Estes jobs só executarão após a conclusão bem-sucedida do Nível 1.
+
+  tests-and-coverage:
+    name: "Nível 2: Testes e Cobertura"
+    runs-on: ubuntu-latest
+    # A diretiva 'needs' garante que este job só inicie após o 'challenge-complete' (e todos os seus dependentes) terminar com sucesso.
+    needs: challenge-complete
+    outputs:
+      coverage: ${{ steps.coverage.outputs.coverage }}
+
+    steps:
+      - name: "Checkout do código"
+        uses: actions/checkout@v4
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: "Instalar dependências"
+        run: npm ci
+
+      - name: "Executar testes com cobertura"
+        id: run-tests
+        run: npm test -- --coverage > test-summary.txt
+
+      - name: "Extrair porcentagem de cobertura"
+        id: coverage
+        run: |
+          # Extrai a linha, pega a 3ª coluna, remove o '%' e qualquer espaço em branco
+          COVERAGE=$(grep 'Statements' test-summary.txt | awk '{print $3}' | tr -d '[:space:]%')
+          echo "Coverage: $COVERAGE%"
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: "Verificar cobertura mínima"
+        env:
+          COVERAGE: ${{ steps.coverage.outputs.coverage }}
+        run: |
+          if (( $(echo "${{ env.COVERAGE }} < ${{ env.COVERAGE_MIN }}" | bc -l) )); then
+            echo "Erro: Cobertura de testes de ${{ env.COVERAGE }}% é menor que o mínimo de ${{ env.COVERAGE_MIN }}%."
+            exit 1
+          fi
+          echo "Cobertura de testes de ${{ env.COVERAGE }}% atingiu o mínimo de ${{ env.COVERAGE_MIN }}%."
+
+  challenge-2-complete:
+      name: "Nível 2: Desafio Concluído!"
+      runs-on: ubuntu-latest
+      # Este job depende da conclusão bem-sucedida do job de testes.
+      needs: tests-and-coverage
+      # A condição 'if' garante que o job só rode se o anterior foi um sucesso e se a cobertura foi extraída.
+      if: success() && needs.tests-and-coverage.outputs.coverage != ''
+
+      steps:
+        - name: "Gerar certificado Nível 2"
+          run: |
+            mkdir -p certificates
+            cat > certificates/level-2-certificate.md << EOF
+            # Certificado de Conclusão - Nível 2
+            **Descomplicando Github Actions - GitHub Actions Edition**
+            ---
+            Este certificado atesta que **${{ github.actor }}** concluiu com sucesso o **Nível 2: Testes Automatizados**.
+            **Cobertura alcançada:** >= ${{ env.COVERAGE_MIN }}%
+            **Data de conclusão:** $(date)
+            EOF
+        - name: "Upload do certificado Nível 2"
+          uses: actions/upload-artifact@v4
+          with:
+            name: level-2-certificate
+            path: certificates/
+            retention-days: 30
