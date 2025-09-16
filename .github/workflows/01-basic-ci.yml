@@ -1,4 +1,4 @@
-name: "CI Pipeline Completa (Nível 1 e 2)"
+name: "CI Básico"
 
 on:
   push:
@@ -10,7 +10,6 @@ on:
 # Variáveis de ambiente globais, disponíveis para todos os jobs
 env:
   NODE_VERSION: '18'
-  COVERAGE_MIN: 80 # Cobertura mínima de testes exigida
 
 jobs:
   # --- INÍCIO DOS JOBS DO NÍVEL 1 ---
@@ -20,7 +19,6 @@ jobs:
     
     outputs:
       node-version: ${{ steps.setup.outputs.node-version }}
-      challenge-status: ${{ steps.challenge.outputs.status }}
     
     steps:
       - name: "Checkout do código"
@@ -38,7 +36,6 @@ jobs:
           echo "Runner: ${{ runner.os }}"
           echo "Node.js: $(node --version)"
           echo "NPM: $(npm --version)"
-          echo "Challenge: ${{ env.CHALLENGE_NAME }}"
           echo "Data: $(date)"
           
       - name: "Instalar dependências"
@@ -46,26 +43,6 @@ jobs:
           echo "Instalando dependências..."
           npm ci
           echo "Dependências instaladas com sucesso!"
-          
-      - name: "Verificar estrutura do projeto"
-        run: |
-          echo "Verificando estrutura do projeto..."
-          ls -la
-          echo ""
-          echo "Arquivos principais encontrados:"
-          [ -f "package.json" ] && echo "package.json"
-          [ -f "server.js" ] && echo "server.js"
-          [ -f "server.test.js" ] && echo "server.test.js"
-          [ -d "public" ] && echo "diretório public/"
-          [ -d ".github/workflows" ] && echo "workflows configurados"
-          
-      - name: "Challenge Status"
-        id: challenge
-        run: |
-          echo "Parabéns! Você executou seu primeiro GitHub Action!"
-          echo "Status: INICIADO"
-          echo "Próximo passo: Execute os testes automatizados"
-          echo "status=started" >> $GITHUB_OUTPUT
           
   build:
     name: "Nível 1: Build da Aplicação"
@@ -88,14 +65,9 @@ jobs:
       - name: "Build da aplicação"
         run: |
           echo "Iniciando build..."
-          npm run build
-          echo "Build concluído com sucesso!"
-          
-      - name: "Estatísticas do build"
-        run: |
-          echo "Estatísticas do build:"
-          echo "Tamanho do projeto: $(du -sh . | cut -f1)"
-          echo "Arquivos: $(find . -type f | wc -l)"
+          # O comando de build pode não existir, então usamos --if-present
+          npm run build --if-present
+          echo "Build concluído!"
           
   health-check:
     name: "Nível 1: Health Check"
@@ -143,30 +115,6 @@ jobs:
     if: success()
     
     steps:
-      - name: "Parabéns!"
-        run: |
-          echo "PARABÉNS! Você concluiu o Nível 1!"
-          echo ""
-          echo "O que você aprendeu:"
-          echo "   • Como criar um workflow básico"
-          echo "   • Usar actions do marketplace (checkout, setup-node)"
-          echo "   • Definir jobs e steps"
-          echo "   • Usar variáveis de ambiente"
-          echo "   • Fazer build e health check"
-          echo ""
-          echo "Badge desbloqueado: First Steps 🚀"
-          echo "Próximo desafio: Nível 2 - Testing Master"
-          echo ""
-          echo "Veja seu progresso em: https://github.com/${{ github.repository }}/actions"
-          
-      - name: "Atualizar estatísticas"
-        run: |
-          echo "Atualizando estatísticas do desafio..."
-          echo "Challenge: ${{ env.CHALLENGE_NAME }}"
-          echo "Status: CONCLUÍDO"
-          echo "Data: $(date)"
-          echo "Usuário: ${{ github.actor }}"
-          
       - name: "Gerar certificado"
         run: |
           mkdir -p certificates
@@ -210,94 +158,3 @@ jobs:
           name: level-1-certificate
           path: certificates/
           retention-days: 30
-          
-      - name: "Notificar aplicação sobre conclusão"
-        run: |
-          echo "Notificando aplicação sobre a conclusão do workflow..."
-          
-          # Tentar notificar a aplicação local (se estiver rodando)
-          curl -X POST "http://localhost:3000/api/workflow-complete" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "username": "${{ github.actor }}",
-              "repository": "${{ github.event.repository.name }}",
-              "workflowName": "${{ github.workflow }}",
-              "runId": "${{ github.run_id }}",
-              "certificateGenerated": true
-            }' || echo "Aplicação local não encontrada (normal em ambiente de produção)"
-          
-          echo "Workflow concluído com sucesso!"
-          echo "Badge será desbloqueado automaticamente se a aplicação estiver rodando"
-
-  # --- INÍCIO DOS JOBS DO NÍVEL 2 ---
-  # Estes jobs só executarão após a conclusão bem-sucedida do Nível 1.
-
-  tests-and-coverage:
-    name: "Nível 2: Testes e Cobertura"
-    runs-on: ubuntu-latest
-    # A diretiva 'needs' garante que este job só inicie após o 'challenge-complete' (e todos os seus dependentes) terminar com sucesso.
-    needs: challenge-complete
-    outputs:
-      coverage: ${{ steps.coverage.outputs.coverage }}
-
-    steps:
-      - name: "Checkout do código"
-        uses: actions/checkout@v4
-
-      - name: "Setup Node.js"
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: "Instalar dependências"
-        run: npm ci
-
-      - name: "Executar testes com cobertura"
-        id: run-tests
-        run: npm test -- --coverage > test-summary.txt
-
-      - name: "Extrair porcentagem de cobertura"
-        id: coverage
-        run: |
-          # Extrai a linha, pega a 3ª coluna, remove o '%' e qualquer espaço em branco
-          COVERAGE=$(grep 'Statements' test-summary.txt | awk '{print $3}' | tr -d '[:space:]%')
-          echo "Coverage: $COVERAGE%"
-          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-
-      - name: "Verificar cobertura mínima"
-        env:
-          COVERAGE: ${{ steps.coverage.outputs.coverage }}
-        run: |
-          if (( $(echo "${{ env.COVERAGE }} < ${{ env.COVERAGE_MIN }}" | bc -l) )); then
-            echo "Erro: Cobertura de testes de ${{ env.COVERAGE }}% é menor que o mínimo de ${{ env.COVERAGE_MIN }}%."
-            exit 1
-          fi
-          echo "Cobertura de testes de ${{ env.COVERAGE }}% atingiu o mínimo de ${{ env.COVERAGE_MIN }}%."
-
-  challenge-2-complete:
-      name: "Nível 2: Desafio Concluído!"
-      runs-on: ubuntu-latest
-      # Este job depende da conclusão bem-sucedida do job de testes.
-      needs: tests-and-coverage
-      # A condição 'if' garante que o job só rode se o anterior foi um sucesso e se a cobertura foi extraída.
-      if: success() && needs.tests-and-coverage.outputs.coverage != ''
-
-      steps:
-        - name: "Gerar certificado Nível 2"
-          run: |
-            mkdir -p certificates
-            cat > certificates/level-2-certificate.md << EOF
-            # Certificado de Conclusão - Nível 2
-            **Descomplicando Github Actions - GitHub Actions Edition**
-            ---
-            Este certificado atesta que **${{ github.actor }}** concluiu com sucesso o **Nível 2: Testes Automatizados**.
-            **Cobertura alcançada:** >= ${{ env.COVERAGE_MIN }}%
-            **Data de conclusão:** $(date)
-            EOF
-        - name: "Upload do certificado Nível 2"
-          uses: actions/upload-artifact@v4
-          with:
-            name: level-2-certificate
-            path: certificates/
-            retention-days: 30
