@@ -34,7 +34,7 @@ jobs:
 
       - name: "Executar testes com cobertura"
         id: run-tests
-        run: npm test -- --coverage > test-summary.txt
+        run: npm run tests > test-summary.txt
 
       - name: "Extrair porcentagem de cobertura" # Esse step será validado pelo desafio, não altere o nome. No final, ele deve gerar o output "coverage" com a porcentagem de cobertura.
         id: coverage
